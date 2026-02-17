@@ -11,6 +11,9 @@ export interface EditorSettings {
   background: string;
   transparentBg: boolean;
   clipThreshold: number;
+  gamma: number;
+  contrast: number;
+  brightness: number;
 }
 
 export interface ExportMeta {
@@ -29,6 +32,9 @@ export interface ExportMeta {
   crossfadeFrames: number;
   transparentBackground: boolean;
   clipThreshold: number;
+  gamma: number;
+  contrast: number;
+  brightness: number;
 }
 
 export interface AsciiExport {
@@ -49,7 +55,24 @@ export const DEFAULT_SETTINGS: EditorSettings = {
   background: "#151820",
   transparentBg: false,
   clipThreshold: 0,
+  gamma: 2.2,
+  contrast: 1.0,
+  brightness: 0.0,
 };
+
+export interface CharSetPreset {
+  name: string;
+  chars: string;
+}
+
+export const CHAR_SET_PRESETS: CharSetPreset[] = [
+  { name: "Code", chars: "{}[]<>/.,;:#$+-=|~_01" },
+  { name: "Classic", chars: "@#$%&*+=-:. " },
+  { name: "Minimal", chars: ".:-=+*#@" },
+  { name: "Dense", chars: "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,\"^'. " },
+  { name: "Blocks", chars: " ░▒▓█" },
+  { name: "Binary", chars: "01" },
+];
 
 export const RESOLUTION_PRESETS = {
   low: 40,

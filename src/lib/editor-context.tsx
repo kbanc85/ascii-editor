@@ -17,7 +17,8 @@ export interface EditorState {
   videoDuration: number;
   videoWidth: number;
   videoHeight: number;
-  frames: string[];
+  framePixels: Uint8ClampedArray[];
+  frameCols: number;
   frameRows: number;
   currentFrame: number;
   isPlaying: boolean;
@@ -27,6 +28,7 @@ export interface EditorState {
   outPoint: number;
   crossfadeFrames: number;
   loopEnabled: boolean;
+  conversionStale: boolean;
 }
 
 export type EditorAction =
@@ -42,7 +44,7 @@ export type EditorAction =
       };
     }
   | { type: "CLEAR_VIDEO" }
-  | { type: "SET_FRAMES"; payload: { frames: string[]; rows: number } }
+  | { type: "SET_FRAMES"; payload: { frames: Uint8ClampedArray[]; cols: number; rows: number } }
   | { type: "SET_CURRENT_FRAME"; payload: number }
   | { type: "SET_PLAYING"; payload: boolean }
   | { type: "SET_PROCESSING"; payload: boolean }
@@ -52,6 +54,10 @@ export type EditorAction =
   | { type: "SET_CROSSFADE"; payload: number }
   | { type: "SET_LOOP"; payload: boolean };
 
+// Only cols requires re-conversion (spatial resampling).
+// All other settings (chars, gamma, contrast, brightness, invert) apply at render time.
+const CONVERSION_KEYS = new Set(["cols"]);
+
 const initialState: EditorState = {
   settings: DEFAULT_SETTINGS,
   videoFile: null,
@@ -59,7 +65,8 @@ const initialState: EditorState = {
   videoDuration: 0,
   videoWidth: 0,
   videoHeight: 0,
-  frames: [],
+  framePixels: [],
+  frameCols: 0,
   frameRows: 0,
   currentFrame: 0,
   isPlaying: false,
@@ -69,15 +76,21 @@ const initialState: EditorState = {
   outPoint: 0,
   crossfadeFrames: 0,
   loopEnabled: true,
+  conversionStale: false,
 };
 
 function reducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
-    case "SET_SETTINGS":
+    case "SET_SETTINGS": {
+      const conversionAffected =
+        state.framePixels.length > 0 &&
+        Object.keys(action.payload).some((k) => CONVERSION_KEYS.has(k));
       return {
         ...state,
         settings: { ...state.settings, ...action.payload },
+        conversionStale: conversionAffected ? true : state.conversionStale,
       };
+    }
     case "SET_VIDEO":
       return {
         ...state,
@@ -86,7 +99,8 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
         videoDuration: action.payload.duration,
         videoWidth: action.payload.width,
         videoHeight: action.payload.height,
-        frames: [],
+        framePixels: [],
+        frameCols: 0,
         frameRows: 0,
         currentFrame: 0,
         inPoint: 0,
@@ -103,7 +117,8 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
         videoDuration: 0,
         videoWidth: 0,
         videoHeight: 0,
-        frames: [],
+        framePixels: [],
+        frameCols: 0,
         frameRows: 0,
         currentFrame: 0,
         isPlaying: false,
@@ -115,9 +130,11 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
     case "SET_FRAMES":
       return {
         ...state,
-        frames: action.payload.frames,
+        framePixels: action.payload.frames,
+        frameCols: action.payload.cols,
         frameRows: action.payload.rows,
         currentFrame: 0,
+        conversionStale: false,
       };
     case "SET_CURRENT_FRAME":
       return { ...state, currentFrame: action.payload };

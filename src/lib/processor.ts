@@ -1,18 +1,16 @@
-import { sampleFrame, createSampleCanvases } from "@/lib/sampler";
+import { samplePixels, createSampleCanvases } from "@/lib/sampler";
 
 export interface ProcessOptions {
   video: HTMLVideoElement;
   cols: number;
-  sortedChars: string[];
   fps: number;
-  invertLuminance: boolean;
   inPoint: number;
   outPoint: number;
   onProgress?: (progress: number) => void;
 }
 
 export interface ProcessResult {
-  frames: string[];
+  frames: Uint8ClampedArray[];
   rows: number;
 }
 
@@ -42,13 +40,13 @@ export function seekTo(
 
 /**
  * Processes a video between in/out points at the configured FPS,
- * sampling each frame to ASCII text.
+ * sampling each frame to raw RGBA pixel data.
  * Reuses canvases across frames and yields to the main thread for progress updates.
  */
 export async function processVideo(
   opts: ProcessOptions
 ): Promise<ProcessResult> {
-  const { video, cols, sortedChars, fps, invertLuminance, inPoint, outPoint, onProgress } = opts;
+  const { video, cols, fps, inPoint, outPoint, onProgress } = opts;
 
   const duration = outPoint - inPoint;
   const frameInterval = 1 / fps;
@@ -57,7 +55,7 @@ export async function processVideo(
   // Reuse canvases across all frames instead of allocating per frame
   const canvases = createSampleCanvases();
 
-  const frames: string[] = [];
+  const frames: Uint8ClampedArray[] = [];
   let rows = 0;
 
   for (let i = 0; i < totalFrames; i++) {
@@ -66,14 +64,14 @@ export async function processVideo(
     try {
       await seekTo(video, Math.min(time, outPoint));
     } catch {
-      // Seek timed out: duplicate previous frame (or empty string for first frame)
-      frames.push(frames.length > 0 ? frames[frames.length - 1] : "");
+      // Seek timed out: duplicate previous frame (or empty array for first frame)
+      frames.push(frames.length > 0 ? frames[frames.length - 1] : new Uint8ClampedArray(0));
       if (onProgress) onProgress((i + 1) / totalFrames);
       continue;
     }
 
-    const result = sampleFrame(video, cols, sortedChars, invertLuminance, canvases);
-    frames.push(result.text);
+    const result = samplePixels(video, cols, canvases);
+    frames.push(result.pixels);
     rows = result.rows;
 
     if (onProgress) {
